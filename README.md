@@ -15,7 +15,7 @@ $ road emerge -va app-editors/vim
 \# chmod -v 4755 /usr/bin/road
 
 # example road.conf
-*note: directory of the road.conf file is /etc/road.conf*
+**note: directory of the road.conf file is /etc/road.conf**
 
 permit user as root
 
