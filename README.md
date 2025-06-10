@@ -28,7 +28,7 @@ permit user as root command *
 # is the road minimal than doas?
 answer: yes
 
-proff:
+proof:
 
 ![image](https://github.com/user-attachments/assets/005ffc91-55d7-47b1-aee2-f724dc81bd12)
 
