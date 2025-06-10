@@ -25,5 +25,12 @@ permit user as root command fdisk
 
 permit user as root command *
 
+# is the road minimal than doas?
+answer: yes
+
+proff:
+
+![image](https://github.com/user-attachments/assets/005ffc91-55d7-47b1-aee2-f724dc81bd12)
+
 # example
 ![image](https://github.com/user-attachments/assets/abd86fed-0427-4968-801d-46425fdf31e8)
