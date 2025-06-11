@@ -25,7 +25,7 @@ permit user as root command fdisk
 
 permit user as root command *
 
-# is the road minimal than doas?
+# is road minimal than doas?
 answer: yes
 
 proof:
