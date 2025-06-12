@@ -1,16 +1,24 @@
 /* See LICENSE file for license details */
 /* road - execute commands as another user */
+#define _XOPEN_SOURCE 700
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <signal.h>
 #include <unistd.h>
 #include <termios.h>
 #include <shadow.h>
+#include <fcntl.h>
 #include <crypt.h>
 #include <errno.h>
 #include <pwd.h>
+#include <sys/resource.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <sys/random.h>
 #include <sys/types.h>
 
+#define version "0.2"
 #define conf "/etc/road.conf"
 #define default_pt "/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
 
@@ -18,7 +26,6 @@ const int so = STDOUT_FILENO;
 const int si = STDIN_FILENO;
 const int exfl = EXIT_FAILURE;
 const int exsc = EXIT_SUCCESS;
-const int tcan = TCSANOW;
 
 typedef struct{
 	int permit;
@@ -30,35 +37,85 @@ typedef struct{
 rule *rules = NULL;
 int num_rules = 0;
 
-void disable_echo(){
-	struct termios tios;
-	tcgetattr(si, &tios);
-	tios.c_lflag &= ~ECHO;
-	tcsetattr(si, tcan, &tios);
+void secure_wipe(const char *s, size_t l){
+	if(!s || l == 0) return;
+	volatile char *p = (volatile char *)s;
+	while(l--) *p++ = 0;
+	__asm__ __volatile__ ("" : : "r"(p) : "memory");
 }
 
-void enable_echo(){
-	struct termios tios;
-	tcgetattr(si, &tios);
-	tios.c_lflag |= ECHO;
-	tcsetattr(si, tcan, &tios);
+void yescrypt_salt(char *salt, size_t size){
+	const char *pf = "$y$j9T$";
+	char rb[16];
+	if(getentropy(rb, sizeof(rb))){
+		perror("road: getentropy failed");
+		exit(exfl);
+	}
+
+	snprintf(salt, size, "%s", pf);
+	crypt_gensalt_r(pf, 0, rb, sizeof(rb), salt, size);
 }
 
 char *getpasswd(){
-	printf("passwd: ");
-	fflush(stdout);
-	disable_echo();
-	char *passwd = NULL;
-	size_t len = 0;
-	ssize_t read = getline(&passwd, &len, stdin);
-	enable_echo();
-	printf("\n");
-	if(read == -1){
-		free(passwd);
+	int tf = open("/dev/tty", O_RDWR|O_NOCTTY);
+	if(tf == -1){
+		if(!isatty(si)){
+			fprintf(stderr, "road: no tty available");
+			return NULL;
+		}
+
+		tf = dup(si);
+		if(tf == -1){
+			perror("road: dup failed");
+			return NULL;
+		}
+	}
+
+	struct termios t, n;
+	if(tcgetattr(tf, &t) == -1){
+		perror("road: tcgetattr failed");
+		close(tf);
 		return NULL;
 	}
 
-	passwd[strcspn(passwd, "\n")] = '\0';
+	n = t;
+	n.c_lflag &= ~ECHO;
+	if(tcsetattr(tf, TCSANOW, &n) == -1){
+		perror("road: failed to disable echo");
+		close(tf);
+		return NULL;
+	}
+
+	FILE *tty = fdopen(tf, "r+");
+	if(!tty){
+		perror("road: fdopen failed");
+		tcsetattr(tf, TCSANOW, &t);
+		close(tf);
+		return NULL;
+	}
+
+	fprintf(tty, "passwd: ");
+	fflush(tty);
+
+	char *passwd = NULL;
+
+	size_t len = 0;
+	ssize_t read = getline(&passwd, &len, tty);
+
+	tcsetattr(tf, TCSANOW, &t);
+	fclose(tty);
+	if(read == -1){
+		if(passwd){
+			secure_wipe(passwd, len);
+			free(passwd);
+		}
+
+		return NULL;
+	}
+
+	if(read > 0 && passwd[read-1] == '\n')
+		passwd[read-1] = '\0';
+
 	return passwd;
 }
 
@@ -75,7 +132,7 @@ void frules(){
 void pconf(){
 	FILE *f = fopen(conf, "r");
 	if(!f){
-		fprintf(stderr, "road: failed to open %s: %s\n", conf, strerror(errno));
+		fprintf(stderr, "road: failed to open %s: no such file\n", conf);
 		exit(exfl);
 	}
 
@@ -87,14 +144,14 @@ void pconf(){
 		int flds = sscanf(ln, "%9s %49s %9s %49s %99s %99s", at, from, as, to, command, path);
 
 		if(flds == 4 && strcmp(as, "as") == 0){
-			strcpy(command, "*");
+			snprintf(command, sizeof(command), "%s", "*");
 		}
 
 		else if(flds >=5 && strcmp(as, "as") == 0 && strcmp(command, "command") == 0){
 			if(flds == 6){
-				strcpy(command, path);
+				snprintf(command, sizeof(command), "%s", path);
 			} else {
-				strcpy(command, "*");
+				snprintf(command, sizeof(command), "%s", "*");
 			}
 		}
 
@@ -128,37 +185,31 @@ void pconf(){
 	fclose(f);
 }
 
+unsigned char t_secure_memcmp(const void *a, const void *b, size_t l){
+	const unsigned char *pa = a;
+	const unsigned char *pb = b;
+	unsigned char d = 0;
+	for(size_t i = 0; i < l; i++){
+		d |= pa[i] ^ pb[i];
+	}
+
+	return d;
+}
+
 int verify_passwd(const char *user, const char *passwd_last){
-	struct spwd *sp = NULL;
-	struct passwd *pw = getpwnam(user);
-	if(!pw){
+	struct spwd *sp = getspnam(user);
+	if(!sp){
 		fprintf(stderr, "road: user '%s' not found\n", user);
 		return 0;
 	}
 
-	sp = getspnam(user);
-	if(sp){
-		char *encrypted = crypt(passwd_last, sp->sp_pwdp);
-		if(!encrypted){
-			perror("road: crypt failed");
-			return 0;
-		}
-
-		return strcmp(encrypted, sp->sp_pwdp) == 0;
+	char *new_hash = crypt(passwd_last, sp->sp_pwdp);
+	if(!new_hash){
+		perror("road: crypt failed");
+		return 0;
 	}
 
-	if(strcmp(pw->pw_passwd, "x") != 0){
-		char *encrypted = crypt(passwd_last, pw->pw_passwd);
-		if(!encrypted){
-			perror("road: crypt failed");
-			return 0;
-		}
-
-		return strcmp(encrypted, pw->pw_passwd) == 0;
-	}
-
-	fprintf(stderr, "road: could not verify passwd, no access to shadow\n");
-	return 0;
+	return t_secure_memcmp(new_hash, sp->sp_pwdp, strlen(sp->sp_pwdp)) == 0;
 }
 
 void check_p(const char *from, const char *to, const char *command){
@@ -201,13 +252,31 @@ void e_as_user(const char *user, char **argv){
 	}
 
 	execvp(argv[0], argv);
-	fprintf(stderr, "road: failed to execute '%s': %s\n", argv[0], strerror(errno));
+	fprintf(stderr, "road: '%s': command not found\n", argv[0]);
 	exit(exfl);
 }
 
 int main(int argc, char **argv){
+	struct rlimit rl = {0, 0};
+	setrlimit(RLIMIT_CORE, &rl);
+	if(argc > 1){
+		if(strcmp(argv[1], "-v") == 0){
+			printf("%s\n", version);
+			exit(exsc);
+		}
+
+		else if(strcmp(argv[1], "-h") == 0){
+			printf("usage: %s [command]..\n", argv[0]);
+			printf("options:\n");
+			printf("  -v	show version information\n");
+			printf("  -h	display this\n");
+			exit(exsc);
+		}
+	}
+
 	if(argc < 2){
 		fprintf(stderr, "usage: %s [command]..\n", argv[0]);
+		fprintf(stderr, "try '%s -h' for more information\n", argv[0]);
 		exit(exfl);
 	}
 
@@ -226,19 +295,28 @@ int main(int argc, char **argv){
 
 	const char *to_user = "root";
 	check_p(from_user, to_user, argv[1]);
+
 	char *passwd_read = getpasswd();
 	if(!passwd_read){
 		fprintf(stderr, "road: failed to read passwd\n");
 		exit(exfl);
 	}
 
+	size_t passwd_len = strlen(passwd_read);
 	if(!verify_passwd(from_user, passwd_read)){
-		fprintf(stderr, "road: incorrect passwd for user '%s'\n", from_user);
+		fprintf(stderr, "road: incorrect passwd for '%s'\n", from_user);
+		secure_wipe(passwd_read, strlen(passwd_read));
 		free(passwd_read);
 		exit(exfl);
 	}
 
+	secure_wipe(passwd_read, passwd_len);
 	free(passwd_read);
+
+	fprintf(stderr, "\n");
+
+	fflush(stdout);
+	fflush(stderr);
 
 	e_as_user(to_user, argv + 1);
 	return exsc;
