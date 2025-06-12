@@ -52,8 +52,12 @@ void yescrypt_salt(char *salt, size_t size){
 		exit(exfl);
 	}
 
-	snprintf(salt, size, "%s", pf);
-	crypt_gensalt_r(pf, 0, rb, sizeof(rb), salt, size);
+	if(crypt_gensalt_r(pf, 0, rb, sizeof(rb), salt, size) == NULL){
+		perror("road: crypt_gensalt_r failed");
+		exit(exfl);
+	}
+
+	secure_wipe(rb, sizeof(rb));
 }
 
 char *getpasswd(){
@@ -203,15 +207,22 @@ int verify_passwd(const char *user, const char *passwd_last){
 		return 0;
 	}
 
-	char *new_hash = crypt(passwd_last, sp->sp_pwdp);
-	if(!new_hash){
-		perror("road: crypt failed");
+	if(strncmp(sp->sp_pwdp, "$y$", 3) != 0){
+		char new_salt[32];
+		yescrypt_salt(new_salt, sizeof(new_salt));
+		char *new_hash = crypt(passwd_last, new_salt);
+		if(!new_hash){
+			perror("road: crypt failed");
+			return 0;
+		}
+
 		return 0;
 	}
 
-	return t_secure_memcmp(new_hash, sp->sp_pwdp, strlen(sp->sp_pwdp)) == 0;
+	char *new_hash = crypt(passwd_last, sp->sp_pwdp);
+	return new_hash && (strcmp(new_hash, sp->sp_pwdp) == 0);
 }
-
+	
 void check_p(const char *from, const char *to, const char *command){
 	for(int i = 0; i < num_rules; i++){
 		if(strcmp(rules[i].from_user, from) == 0 &&
