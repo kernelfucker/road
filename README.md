@@ -34,7 +34,7 @@ permit user as root command *
 \- no buffer overflow problems
 
 # can i use road on openbsd?
-\- [road for openbsd](https://github.com/kernelfucker/road-openbsd)
+**[road for openbsd](https://github.com/kernelfucker/road-openbsd)**
 
 # example
 ![image](https://github.com/user-attachments/assets/abd86fed-0427-4968-801d-46425fdf31e8)
