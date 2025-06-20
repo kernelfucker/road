@@ -64,7 +64,7 @@ char *getpasswd(){
 	int tf = open("/dev/tty", O_RDWR|O_NOCTTY);
 	if(tf == -1){
 		if(!isatty(si)){
-			fprintf(stderr, "road: no tty available");
+			fprintf(stderr, "road: no tty available\n");
 			return NULL;
 		}
 
@@ -160,7 +160,7 @@ void pconf(){
 		}
 
 		else{
-			fprintf(stderr, "road: invalid line: %s", ln);
+			fprintf(stderr, "road: invalid line: %s\n", ln);
 			continue;
 		}
 
