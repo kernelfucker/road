@@ -8,7 +8,7 @@ $ clang road.c -o road -lcrypt -fstack-protector-all -D_XOPEN_SOURCE=700
 $ road emerge -va app-editors/vim
 
 # cp, chown, chmod
-\# cp road /usr/bin/road
+# cp road /usr/bin/road
 
 \# chown -v root:root /usr/bin/road
 
