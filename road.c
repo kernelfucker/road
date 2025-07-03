@@ -272,7 +272,7 @@ int main(int argc, char **argv){
 	setrlimit(RLIMIT_CORE, &rl);
 	if(argc > 1){
 		if(strcmp(argv[1], "-v") == 0){
-			printf("%s\n", version);
+			printf("road-%s\n", version);
 			exit(exsc);
 		}
 
