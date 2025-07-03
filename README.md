@@ -26,7 +26,7 @@ permit user as root command fdisk
 permit user as root command *
 
 # is road minimal than doas?
-![image](https://github.com/user-attachments/assets/cb356199-5371-4c3b-ac96-61f6e3619435)
+![image](https://github.com/user-attachments/assets/e021549e-9ba7-4d23-8a2f-fd2ae2f34c8b)
 
 # is road secure than doas?
 \- yescrypt is using it in the back and thats why
@@ -34,4 +34,4 @@ permit user as root command *
 \- no buffer overflow problems
 
 # example
-![image](https://github.com/user-attachments/assets/abd86fed-0427-4968-801d-46425fdf31e8)
+![image](https://github.com/user-attachments/assets/0a2608fc-4077-443b-9f19-fec32dde15eb)
