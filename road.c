@@ -1,6 +1,5 @@
 /* See LICENSE file for license details */
 /* road - execute commands as another user */
-#define _XOPEN_SOURCE 700
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
