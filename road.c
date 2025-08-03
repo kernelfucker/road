@@ -17,7 +17,7 @@
 #include <sys/random.h>
 #include <sys/types.h>
 
-#define version "0.2"
+#define version "0.3"
 
 #define conf "/etc/road.conf"
 #define default_pt "/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
