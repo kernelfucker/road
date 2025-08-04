@@ -327,7 +327,7 @@ int main(int argc, char **argv){
 		}
 
 		else if(strcmp(argv[1], "-h") == 0){
-			printf("usage: %s [command]..\n", argv[0]);
+			printf("usage: %s [options]..\n", argv[0]);
 			printf("options:\n");
 			printf("  -v	show version information\n");
 			printf("  -h	display this\n");
@@ -336,7 +336,7 @@ int main(int argc, char **argv){
 	}
 
 	if(argc < 2){
-		fprintf(stderr, "usage: %s [command]..\n", argv[0]);
+		fprintf(stderr, "usage: %s [options]..\n", argv[0]);
 		fprintf(stderr, "try '%s -h' for more information\n", argv[0]);
 		exit(exfl);
 	}
