@@ -2,11 +2,11 @@
 execute commands as another user
 
 # compile
-\# for yescrypt
+\- for yescrypt
 
 $ clang road.c -o road -Wall -Werror -Os -s -lcrypt -fstack-protector-all -D__yescrypt__
 
-\# for sha-512
+\- for sha-512
 
 $ clang road.c -o road -Wall -Werror -Os -s -lcrypt -fstack-protector-all -D__sha512__
 
