@@ -2,9 +2,13 @@
 execute commands as another user
 
 # compile
-$ clang road.c -o road -Wall -Werror -Os -s -lcrypt -fstack-protector-all -D__yescrypt__ # for yescrypt
+\# for yescrypt
 
-$ clang road.c -o road -Wall -Werror -Os -s -lcrypt -fstack-protector-all -D__sha512__ # for sha-512
+$ clang road.c -o road -Wall -Werror -Os -s -lcrypt -fstack-protector-all -D__yescrypt__
+
+\# for sha-512
+
+$ clang road.c -o road -Wall -Werror -Os -s -lcrypt -fstack-protector-all -D__sha512__
 
 # usage
 $ road emerge -va app-editors/vim
