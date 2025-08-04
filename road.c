@@ -37,7 +37,7 @@ typedef struct{
 rule *rules = NULL;
 int num_rules = 0;
 
-	void secure_wipe(unsigned char *s, size_t l){
+void secure_wipe(unsigned char *s, size_t l){
 	volatile unsigned char *p = s;
 	while(l--) *p++ = 0;
 	__asm__ __volatile__("" : : "r"(s) : "memory");
