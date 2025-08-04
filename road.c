@@ -257,7 +257,7 @@ int verify_passwd(const char *user, const char *passwd_last){
 	#elif defined(__sha512__)
 	if(strncmp(s->sp_pwdp, "$6$", 3) != 0){
 		char salt[128];
-		yescrypt_salt(salt, sizeof(salt));
+		sha512_salt(salt, sizeof(salt));
 		char *new_salt = crypt(passwd_last, salt);
 		if(!new_salt){
 			fprintf(stderr, "road: failed to generate sha-512 hash\n");
