@@ -68,6 +68,31 @@ void yescrypt_salt(char *salt, size_t size){
 	secure_wipe((unsigned char *)hex_salt, sizeof(hex_salt));
 }
 
+void sha512_salt(char *salt, size_t size){
+	const char *pr = "$6$";
+	unsigned char rb[32];
+	char hex_salt[65];
+	if(getentropy(rb, sizeof(rb)) != 0){
+		perror("road: genentropy failed");
+		exit(exfl);
+	}
+
+	for(int i = 0; i < (int)sizeof(rb); i++){
+		sprintf(hex_salt + i * 2, "%02x", rb[i]);
+	}
+
+	hex_salt[64] = '\0';
+	if(snprintf(salt, size, "%s%s", pr, hex_salt) >= (int)size){
+		fprintf(stderr, "road: salt buffer too tiny\n");
+		secure_wipe(rb, sizeof(rb));
+		secure_wipe((unsigned char *)hex_salt, sizeof(hex_salt));
+		exit(exfl);
+	}
+
+	secure_wipe(rb, sizeof(rb));
+	secure_wipe((unsigned char *)hex_salt, sizeof(hex_salt));
+}
+
 char *getpasswd(){
 	int tf = open("/dev/tty", O_RDWR|O_NOCTTY);
 	if(tf == -1){
@@ -209,28 +234,45 @@ unsigned char t_secure_memcmp(const void *a, const void *b, size_t l){
 }
 
 int verify_passwd(const char *user, const char *passwd_last){
-	struct spwd *sp = getspnam(user);
-	if(!sp){
+	struct spwd *s = getspnam(user);
+	if(!s){
 		fprintf(stderr, "road: user '%s' not found\n", user);
 		return 0;
 	}
 
-	if(strncmp(sp->sp_pwdp, "$y$", 3) != 0){
-		char new_salt[32];
-		yescrypt_salt(new_salt, sizeof(new_salt));
-		char *new_hash = crypt(passwd_last, new_salt);
-		if(!new_hash){
-			perror("road: crypt failed");
+	#if defined(__yescrypt__)
+	if(strncmp(s->sp_pwdp, "$y$j9T", 6) != 0){
+		char salt[128];
+		yescrypt_salt(salt, sizeof(salt));
+		char *new_salt = crypt(passwd_last, salt);
+		if(!new_salt){
+			fprintf(stderr, "road: failed to generate yescrypt hash\n");
 			return 0;
 		}
-
-		return 0;
 	}
 
-	char *new_hash = crypt(passwd_last, sp->sp_pwdp);
-	return new_hash && (strcmp(new_hash, sp->sp_pwdp) == 0);
+	char *new_hash = crypt(passwd_last, s->sp_pwdp);
+	return new_hash && (strcmp(new_hash, s->sp_pwdp) == 0);
+
+	#elif defined(__sha512__)
+	if(strncmp(s->sp_pwdp, "$6$", 3) != 0){
+		char salt[128];
+		yescrypt_salt(salt, sizeof(salt));
+		char *new_salt = crypt(passwd_last, salt);
+		if(!new_salt){
+			fprintf(stderr, "road: failed to generate sha-512 hash\n");
+			return 0;
+		}
+	}
+
+	char *new_hash = crypt(passwd_last, s->sp_pwdp);
+	return new_hash && (strcmp(new_hash, s->sp_pwdp) == 0);
+
+	#else
+		#error "unsupported hash: define one of __yescrypt__, __sha512__"
+	#endif
 }
-	
+
 void check_p(const char *from, const char *to, const char *command){
 	for(int i = 0; i < num_rules; i++){
 		if(strcmp(rules[i].from_user, from) == 0 &&
