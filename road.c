@@ -17,7 +17,7 @@
 #include <sys/random.h>
 #include <sys/types.h>
 
-#define version "0.3"
+#define version "0.4"
 
 #define conf "/etc/road.conf"
 #define default_pt "/usr/local/sbin:/usr/local/bin:/usr/bin:/usr/sbin:/bin:/sbin"
@@ -37,27 +37,35 @@ typedef struct{
 rule *rules = NULL;
 int num_rules = 0;
 
-void secure_wipe(const char *s, size_t l){
-	if(!s || l == 0) return;
-	volatile char *p = (volatile char *)s;
+	void secure_wipe(unsigned char *s, size_t l){
+	volatile unsigned char *p = s;
 	while(l--) *p++ = 0;
-	__asm__ __volatile__ ("" : : "r"(p) : "memory");
+	__asm__ __volatile__("" : : "r"(s) : "memory");
 }
 
 void yescrypt_salt(char *salt, size_t size){
-	const char *pf = "$y$j9T$";
-	char rb[16];
-	if(getentropy(rb, sizeof(rb))){
-		perror("road: getentropy failed");
+	const char *pr = "$y$j9T$";
+	unsigned char rb[32];
+	char hex_salt[65];
+	if(getentropy(rb, sizeof(rb)) != 0){
+		perror("road: genentropy failed");
 		exit(exfl);
 	}
 
-	if(crypt_gensalt_r(pf, 0, rb, sizeof(rb), salt, size) == NULL){
-		perror("road: crypt_gensalt_r failed");
+	for(int i = 0; i < (int)sizeof(rb); i++){
+		sprintf(hex_salt + i * 2, "%02x", rb[i]);
+	}
+
+	hex_salt[64] = '\0';
+	if(snprintf(salt, size, "%s%s", pr, hex_salt) >= (int)size){
+		fprintf(stderr, "road: salt buffer too tiny\n");
+		secure_wipe(rb, sizeof(rb));
+		secure_wipe((unsigned char *)hex_salt, sizeof(hex_salt));
 		exit(exfl);
 	}
 
 	secure_wipe(rb, sizeof(rb));
+	secure_wipe((unsigned char *)hex_salt, sizeof(hex_salt));
 }
 
 char *getpasswd(){
@@ -110,7 +118,7 @@ char *getpasswd(){
 	fclose(tty);
 	if(read == -1){
 		if(passwd){
-			secure_wipe(passwd, len);
+			secure_wipe((unsigned char *)passwd, len);
 			free(passwd);
 		}
 
@@ -316,12 +324,12 @@ int main(int argc, char **argv){
 	size_t passwd_len = strlen(passwd_read);
 	if(!verify_passwd(from_user, passwd_read)){
 		fprintf(stderr, "road: incorrect passwd for '%s'\n", from_user);
-		secure_wipe(passwd_read, strlen(passwd_read));
+		secure_wipe((unsigned char *)passwd_read, strlen(passwd_read));
 		free(passwd_read);
 		exit(exfl);
 	}
 
-	secure_wipe(passwd_read, passwd_len);
+	secure_wipe((unsigned char *)passwd_read, passwd_len);
 	free(passwd_read);
 
 	fprintf(stderr, "\n");
